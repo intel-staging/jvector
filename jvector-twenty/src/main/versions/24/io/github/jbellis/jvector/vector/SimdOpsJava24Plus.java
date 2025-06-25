@@ -80,7 +80,7 @@ final class SimdOpsJava24Plus
             ShortVector shuffle512 = (ShortVector) ByteVector.fromArray(byteVectorSpecies256, shuffles.get(),
                             i * byteVectorSpecies256.length())
                     .convertShape(VectorOperators.ZERO_EXTEND_B2S, shortSpecies512, 0);
-            var partialsVec = lookUpPartialSums(shuffle512, quantizedPartialsShorts, /*quantizedPartials,*/ i);
+            var partialsVec = lookUpPartialSums(shuffle512, quantizedPartialsShorts, i);
             sum = sum.lanewise(VectorOperators.SUADD, partialsVec);
         }
         ShortVector quantizedResultsLeftRaw = (ShortVector) sum.reinterpretShape(ShortVector.SPECIES_256, 0);
@@ -119,7 +119,7 @@ final class SimdOpsJava24Plus
             ShortVector shuffle512 = (ShortVector) ByteVector.fromArray(byteVectorSpecies256, shuffles.get(),
                             i * byteVectorSpecies256.length())
                     .convertShape(VectorOperators.ZERO_EXTEND_B2S, shortSpecies512, 0);
-            var partialsVec = lookUpPartialSums(shuffle512, /*quantizedPartialSums,*/quantizedPartialSumsShorts, i);
+            var partialsVec = lookUpPartialSums(shuffle512, quantizedPartialSumsShorts, i);
             sum = sum.lanewise(VectorOperators.SUADD, partialsVec);
 
             var partialsMag = lookUpPartialSums(shuffle512, quantizedPartialSquaredMagnitudesShorts, i);
@@ -158,7 +158,7 @@ final class SimdOpsJava24Plus
         return floatVec.fma(deltaVec, baseVec);
     }
 
-    private static ShortVector lookUpPartialSums(ShortVector shuffle512, short[] quantizedPartialsShorts,/*ArrayByteSequence quantizedPartials*/ int i)
+    private static ShortVector lookUpPartialSums(ShortVector shuffle512, short[] quantizedPartialsShorts, int i)
     {
         VectorSpecies<Short> shortVectorSpecies512 = ShortVector.SPECIES_512;
         int baseOffset = (i * 256);
