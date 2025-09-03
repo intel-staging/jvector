@@ -16,7 +16,6 @@
 
 package io.github.jbellis.jvector.quantization;
 
-import io.github.jbellis.jvector.annotations.VisibleForTesting;
 import io.github.jbellis.jvector.disk.RandomAccessReader;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.graph.similarity.ScoreFunction;
@@ -37,7 +36,6 @@ import java.util.stream.IntStream;
 
 public abstract class PQVectors implements CompressedVectors {
     private static final VectorTypeSupport vectorTypeSupport = VectorizationProvider.getInstance().getVectorTypeSupport();
-    static final int MAX_CHUNK_SIZE = Integer.MAX_VALUE - 16; // standard Java array size limit with some headroom
 
     final ProductQuantization pq;
     protected ByteSequence<?>[] compressedDataChunks;
@@ -55,51 +53,19 @@ public abstract class PQVectors implements CompressedVectors {
         int vectorCount = in.readInt();
         int compressedDimension = in.readInt();
 
-        int[] params = calculateChunkParameters(vectorCount, compressedDimension);
-        int vectorsPerChunk = params[0];
-        int totalChunks = params[1];
-        int fullSizeChunks = params[2];
-        int remainingVectors = params[3];
+        PQLayout layout = new PQLayout(vectorCount,compressedDimension);
+        ByteSequence<?>[] chunks = new ByteSequence<?>[layout.totalChunks];
 
-        ByteSequence<?>[] chunks = new ByteSequence<?>[totalChunks];
-        int chunkBytes = vectorsPerChunk * compressedDimension;
-
-        for (int i = 0; i < fullSizeChunks; i++) {
-            chunks[i] = vectorTypeSupport.readByteSequence(in, chunkBytes);
+        for (int i = 0; i < layout.fullSizeChunks; i++) {
+            chunks[i] = vectorTypeSupport.readByteSequence(in, layout.fullChunkBytes);
         }
 
         // Last chunk might be smaller
-        if (totalChunks > fullSizeChunks) {
-            chunks[fullSizeChunks] = vectorTypeSupport.readByteSequence(in, remainingVectors * compressedDimension);
+        if (layout.totalChunks > layout.fullSizeChunks) {
+            chunks[layout.fullSizeChunks] = vectorTypeSupport.readByteSequence(in, layout.lastChunkBytes);
         }
 
-        return new ImmutablePQVectors(pq, chunks, vectorCount, vectorsPerChunk);
-    }
-
-    /**
-     * Calculate chunking parameters for the given vector count and compressed dimension
-     * @return array of [vectorsPerChunk, totalChunks, fullSizeChunks, remainingVectors]
-     */
-    @VisibleForTesting
-    static int[] calculateChunkParameters(int vectorCount, int compressedDimension) {
-        if (vectorCount < 0) {
-            throw new IllegalArgumentException("Invalid vector count " + vectorCount);
-        }
-        if (compressedDimension < 0) {
-            throw new IllegalArgumentException("Invalid compressed dimension " + compressedDimension);
-        }
-
-        long totalSize = (long) vectorCount * compressedDimension;
-        int vectorsPerChunk = totalSize <= MAX_CHUNK_SIZE ? vectorCount : MAX_CHUNK_SIZE / compressedDimension;
-        if (vectorsPerChunk == 0) {
-            throw new IllegalArgumentException("Compressed dimension " + compressedDimension + " too large for chunking");
-        }
-
-        int fullSizeChunks = vectorCount / vectorsPerChunk;
-        int totalChunks = vectorCount % vectorsPerChunk == 0 ? fullSizeChunks : fullSizeChunks + 1;
-
-        int remainingVectors = vectorCount % vectorsPerChunk;
-        return new int[] {vectorsPerChunk, totalChunks, fullSizeChunks, remainingVectors};
+        return new ImmutablePQVectors(pq, chunks, vectorCount, layout.fullChunkVectors);
     }
 
     public static PQVectors load(RandomAccessReader in, long offset) throws IOException {
@@ -118,20 +84,15 @@ public abstract class PQVectors implements CompressedVectors {
      * @return the PQVectors instance
      */
     public static ImmutablePQVectors encodeAndBuild(ProductQuantization pq, int vectorCount, RandomAccessVectorValues ravv, ForkJoinPool simdExecutor) {
-        // Calculate if we need to split into multiple chunks
         int compressedDimension = pq.compressedVectorSize();
-        long totalSize = (long) vectorCount * compressedDimension;
-        int vectorsPerChunk = totalSize <= PQVectors.MAX_CHUNK_SIZE ? vectorCount : PQVectors.MAX_CHUNK_SIZE / compressedDimension;
-
-        int numChunks = vectorCount / vectorsPerChunk;
-        final ByteSequence<?>[] chunks = new ByteSequence<?>[numChunks];
-        int chunkSize = vectorsPerChunk * compressedDimension;
-        for (int i = 0; i < numChunks - 1; i++)
-            chunks[i] = vectorTypeSupport.createByteSequence(chunkSize);
-
-        // Last chunk might be smaller
-        int remainingVectors = vectorCount - (vectorsPerChunk * (numChunks - 1));
-        chunks[numChunks - 1] = vectorTypeSupport.createByteSequence(remainingVectors * compressedDimension);
+        PQLayout layout = new PQLayout(vectorCount,compressedDimension);
+        final ByteSequence<?>[] chunks = new ByteSequence<?>[layout.totalChunks];
+        for (int i = 0; i < layout.fullSizeChunks; i++) {
+            chunks[i] = vectorTypeSupport.createByteSequence(layout.fullChunkBytes);
+        }
+        if (layout.lastChunkVectors > 0) {
+            chunks[layout.fullSizeChunks] = vectorTypeSupport.createByteSequence(layout.lastChunkBytes);
+        }
 
         // Encode the vectors in parallel into the compressed data chunks
         // The changes are concurrent, but because they are coordinated and do not overlap, we can use parallel streams
@@ -142,7 +103,7 @@ public abstract class PQVectors implements CompressedVectors {
                         .forEach(ordinal -> {
                             // Retrieve the slice and mutate it.
                             var localRavv = ravvCopy.get();
-                            var slice = PQVectors.get(chunks, ordinal, vectorsPerChunk, pq.getSubspaceCount());
+                            var slice = PQVectors.get(chunks, ordinal, layout.fullChunkVectors, pq.getSubspaceCount());
                             var vector = localRavv.getVector(ordinal);
                             if (vector != null)
                                 pq.encodeTo(vector, slice);
@@ -151,7 +112,7 @@ public abstract class PQVectors implements CompressedVectors {
                         }))
                 .join();
 
-        return new ImmutablePQVectors(pq, chunks, vectorCount, vectorsPerChunk);
+        return new ImmutablePQVectors(pq, chunks, vectorCount, layout.fullChunkVectors);
     }
 
     @Override
@@ -223,9 +184,10 @@ public abstract class PQVectors implements CompressedVectors {
         }
     }
 
-    @Override
     public ScoreFunction.ApproximateScoreFunction scoreFunctionFor(VectorFloat<?> q, VectorSimilarityFunction similarityFunction) {
         VectorFloat<?> centeredQuery = pq.globalCentroid == null ? q : VectorUtil.sub(q, pq.globalCentroid);
+
+        final int subspaceCount = pq.getSubspaceCount();
         switch (similarityFunction) {
             case DOT_PRODUCT:
                 return (node2) -> {
@@ -233,7 +195,7 @@ public abstract class PQVectors implements CompressedVectors {
                     var encodedOffset = getOffsetInChunk(node2);
                     // compute the dot product of the query and the codebook centroids corresponding to the encoded points
                     float dp = 0;
-                    for (int m = 0; m < pq.getSubspaceCount(); m++) {
+                    for (int m = 0; m < subspaceCount; m++) {
                         int centroidIndex = Byte.toUnsignedInt(encodedChunk.get(m + encodedOffset));
                         int centroidLength = pq.subvectorSizesAndOffsets[m][0];
                         int centroidOffset = pq.subvectorSizesAndOffsets[m][1];
@@ -250,7 +212,7 @@ public abstract class PQVectors implements CompressedVectors {
                     // compute the dot product of the query and the codebook centroids corresponding to the encoded points
                     float sum = 0;
                     float norm2 = 0;
-                    for (int m = 0; m < pq.getSubspaceCount(); m++) {
+                    for (int m = 0; m < subspaceCount; m++) {
                         int centroidIndex = Byte.toUnsignedInt(encodedChunk.get(m + encodedOffset));
                         int centroidLength = pq.subvectorSizesAndOffsets[m][0];
                         int centroidOffset = pq.subvectorSizesAndOffsets[m][1];
@@ -268,11 +230,80 @@ public abstract class PQVectors implements CompressedVectors {
                     var encodedOffset = getOffsetInChunk(node2);
                     // compute the euclidean distance between the query and the codebook centroids corresponding to the encoded points
                     float sum = 0;
-                    for (int m = 0; m < pq.getSubspaceCount(); m++) {
+                    for (int m = 0; m < subspaceCount; m++) {
                         int centroidIndex = Byte.toUnsignedInt(encodedChunk.get(m + encodedOffset));
                         int centroidLength = pq.subvectorSizesAndOffsets[m][0];
                         int centroidOffset = pq.subvectorSizesAndOffsets[m][1];
                         sum += VectorUtil.squareL2Distance(pq.codebooks[m], centroidIndex * centroidLength, centeredQuery, centroidOffset, centroidLength);
+                    }
+                    // scale to [0, 1]
+                    return 1 / (1 + sum);
+                };
+            default:
+                throw new IllegalArgumentException("Unsupported similarity function " + similarityFunction);
+        }
+    }
+
+    @Override
+    public ScoreFunction.ApproximateScoreFunction diversityFunctionFor(int node1, VectorSimilarityFunction similarityFunction) {
+        final int subspaceCount = pq.getSubspaceCount();
+        var node1Chunk = getChunk(node1);
+        var node1Offset = getOffsetInChunk(node1);
+
+        switch (similarityFunction) {
+            case DOT_PRODUCT:
+                return (node2) -> {
+                    var node2Chunk = getChunk(node2);
+                    var node2Offset = getOffsetInChunk(node2);
+                    // compute the euclidean distance between the query and the codebook centroids corresponding to the encoded points
+                    float dp = 0;
+                    for (int m = 0; m < subspaceCount; m++) {
+                        int centroidIndex1 = Byte.toUnsignedInt(node1Chunk.get(m + node1Offset));
+                        int centroidIndex2 = Byte.toUnsignedInt(node2Chunk.get(m + node2Offset));
+                        int centroidLength = pq.subvectorSizesAndOffsets[m][0];
+                        dp += VectorUtil.dotProduct(pq.codebooks[m], centroidIndex1 * centroidLength, pq.codebooks[m], centroidIndex2 * centroidLength, centroidLength);
+                    }
+                    // scale to [0, 1]
+                    return (1 + dp) / 2;
+                };
+            case COSINE:
+                float norm1 = 0.0f;
+                for (int m1 = 0; m1 < subspaceCount; m1++) {
+                    int centroidIndex = Byte.toUnsignedInt(node1Chunk.get(m1 + node1Offset));
+                    int centroidLength = pq.subvectorSizesAndOffsets[m1][0];
+                    var codebookOffset = centroidIndex * centroidLength;
+                    norm1 += VectorUtil.dotProduct(pq.codebooks[m1], codebookOffset, pq.codebooks[m1], codebookOffset, centroidLength);
+                }
+                final float norm1final = norm1;
+                return (node2) -> {
+                    var node2Chunk = getChunk(node2);
+                    var node2Offset = getOffsetInChunk(node2);
+                    // compute the dot product of the query and the codebook centroids corresponding to the encoded points
+                    float sum = 0;
+                    float norm2 = 0;
+                    for (int m = 0; m < subspaceCount; m++) {
+                        int centroidIndex1 = Byte.toUnsignedInt(node1Chunk.get(m + node1Offset));
+                        int centroidIndex2 = Byte.toUnsignedInt(node2Chunk.get(m + node2Offset));
+                        int centroidLength = pq.subvectorSizesAndOffsets[m][0];
+                        int codebookOffset = centroidIndex2 * centroidLength;
+                        sum += VectorUtil.dotProduct(pq.codebooks[m], codebookOffset, pq.codebooks[m], centroidIndex1 * centroidLength, centroidLength);
+                        norm2 += VectorUtil.dotProduct(pq.codebooks[m], codebookOffset, pq.codebooks[m], codebookOffset, centroidLength);
+                    }
+                    float cosine = sum / (float) Math.sqrt(norm1final * norm2);
+                    // scale to [0, 1]
+                    return (1 + cosine) / 2;
+                };
+            case EUCLIDEAN:
+                return (node2) -> {
+                    var node2Chunk = getChunk(node2);
+                    var node2Offset = getOffsetInChunk(node2);
+                    // compute the euclidean distance between the query and the codebook centroids corresponding to the encoded points
+                    float sum = 0;
+                    for (int m = 0; m < subspaceCount; m++) {
+                        int centroidIndex1 = Byte.toUnsignedInt(node1Chunk.get(m + node1Offset));
+                        int centroidIndex2 = Byte.toUnsignedInt(node2Chunk.get(m + node2Offset));
+                        int centroidLength = pq.subvectorSizesAndOffsets[m][0];
+                        sum += VectorUtil.squareL2Distance(pq.codebooks[m], centroidIndex1 * centroidLength, pq.codebooks[m], centroidIndex2 * centroidLength, centroidLength);
                     }
                     // scale to [0, 1]
                     return 1 / (1 + sum);
@@ -372,5 +403,74 @@ public abstract class PQVectors implements CompressedVectors {
                 "pq=" + pq +
                 ", count=" + count() +
                 '}';
+    }
+
+    /**
+     * Chunk Dimensions and Layout
+     * This is emulative of modern Java records, but keeps to J11 standards.
+     * This class consolidates the layout calculations for PQ data into one place
+     */
+    static class PQLayout {
+
+        /**
+         * total number of vectors
+         **/
+        public final int vectorCount;
+        /**
+         * total number of chunks, including any partial
+         **/
+        public final int totalChunks;
+        /**
+         * total number of fully-filled chunks
+         **/
+        public final int fullSizeChunks;
+        /**
+         * number of vectors per fullSize chunk
+         **/
+        public final int fullChunkVectors;
+        /**
+         * number of vectors in last partially filled chunk, if any
+         **/
+        public final int lastChunkVectors;
+        /**
+         * compressed dimension of vectors
+         **/
+        public final int compressedDimension;
+        /**
+         * number of bytes in each fully-filled chunk
+         **/
+        public final int fullChunkBytes;
+        /**
+         * number of bytes in the last partially-filled chunk, if any
+         **/
+        public final int lastChunkBytes;
+
+        public PQLayout(int vectorCount, int compressedDimension) {
+            if (vectorCount <= 0) {
+                throw new IllegalArgumentException("Invalid vector count " + vectorCount);
+            }
+            this.vectorCount = vectorCount;
+
+            if (compressedDimension <= 0) {
+                throw new IllegalArgumentException("Invalid compressed dimension " + compressedDimension);
+            }
+            this.compressedDimension = compressedDimension;
+
+            // Get the aligned number of bytes needed to hold a given dimension
+            // purely for overflow prevention
+            int layoutBytesPerVector = compressedDimension == 1 ? 1 : Integer.highestOneBit(compressedDimension - 1) << 1;
+            // truncation welcome here, biasing for smaller chunks
+            int addressableVectorsPerChunk = Integer.MAX_VALUE / layoutBytesPerVector;
+
+            fullChunkVectors = Math.min(vectorCount, addressableVectorsPerChunk);
+            lastChunkVectors = vectorCount % fullChunkVectors;
+
+            fullChunkBytes = fullChunkVectors * compressedDimension;
+            lastChunkBytes = lastChunkVectors * compressedDimension;
+
+            fullSizeChunks = vectorCount / fullChunkVectors;
+            totalChunks = fullSizeChunks + (lastChunkVectors == 0 ? 0 : 1);
+        }
+
     }
 }
