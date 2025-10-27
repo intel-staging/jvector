@@ -227,10 +227,6 @@ public final class VectorUtil {
     return impl.pqDecodedCosineSimilarity(encoded, encodedOffset, encodedLength, clusterCount, partialSums, aMagnitude, bMagnitude);
   }
 
-  public static float pqDiversityEuclidean(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> node1Chunk, int node1Offset, ByteSequence<?> node2Chunk, int node2Offset, int subspaceCount) {
-    return impl.pqDiversityEuclidean(codebooks, subvectorSizesAndOffsets, node1Chunk, node1Offset, node2Chunk, node2Offset, subspaceCount);
-  }
-
   public static float nvqDotProduct8bit(VectorFloat<?> vector, ByteSequence<?> bytes, float growthRate, float midpoint, float minValue, float maxValue) {
     return impl.nvqDotProduct8bit(vector, bytes, growthRate, midpoint, minValue, maxValue);
   }
@@ -257,6 +253,30 @@ public final class VectorUtil {
 
   public static float nvqUniformLoss(VectorFloat<?> vector, float minValue, float maxValue, int nBits) {
     return impl.nvqUniformLoss(vector, minValue, maxValue, nBits);
+  }
+
+  public static float pqScoreDotProduct(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> node1Chunk, int node1Offset, ByteSequence<?> node2Chunk, int node2Offset, int subspaceCount) {
+    return impl.pqScoreDotProduct(codebooks, subvectorSizesAndOffsets, node1Chunk, node1Offset, node2Chunk, node2Offset, subspaceCount);
+  }
+
+  public static float pqScoreCosine(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> node1Chunk, int node1Offset, ByteSequence<?> node2Chunk, int node2Offset, int subspaceCount) {
+    return impl.pqScoreCosine(codebooks, subvectorSizesAndOffsets, node1Chunk, node1Offset, node2Chunk, node2Offset, subspaceCount);
+  }
+
+  public static float pqScoreEuclidean(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> node1Chunk, int node1Offset, ByteSequence<?> node2Chunk, int node2Offset, int subspaceCount) {
+    return impl.pqScoreEuclidean(codebooks, subvectorSizesAndOffsets, node1Chunk, node1Offset, node2Chunk, node2Offset, subspaceCount);
+  }
+
+  public static float pqScoreDotProduct(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> encodedChunk, int encodedOffset, VectorFloat<?> centeredQuery, int subspaceCount) {
+    return impl.pqScoreDotProduct(codebooks, subvectorSizesAndOffsets, encodedChunk, encodedOffset, centeredQuery, subspaceCount);
+  }
+
+  public static float pqScoreCosine(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> encodedChunk, int encodedOffset, VectorFloat<?> centeredQuery, int subspaceCount) {
+    return impl.pqScoreCosine(codebooks, subvectorSizesAndOffsets, encodedChunk, encodedOffset, centeredQuery, subspaceCount);
+  }
+
+  public static float pqScoreEuclidean(VectorFloat<?>[] codebooks, int[][] subvectorSizesAndOffsets, ByteSequence<?> encodedChunk, int encodedOffset, VectorFloat<?> centeredQuery, int subspaceCount) {
+    return impl.pqScoreEuclidean(codebooks, subvectorSizesAndOffsets, encodedChunk, encodedOffset, centeredQuery, subspaceCount);
   }
 
 }
