@@ -47,8 +47,8 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 2)
 @Measurement(iterations = 3)
 @Threads(1)
-public class PQDistanceCalculationMutableBenchmark {
-    private static final Logger log = LoggerFactory.getLogger(PQDistanceCalculationMutableBenchmark.class);
+public class PQDistanceCalculationMutableVectorBenchmark {
+    private static final Logger log = LoggerFactory.getLogger(PQDistanceCalculationMutableVectorBenchmark.class);
     private static final VectorTypeSupport VECTOR_TYPE_SUPPORT = VectorizationProvider.getInstance().getVectorTypeSupport();
 
     private List<VectorFloat<?>> vectors;
