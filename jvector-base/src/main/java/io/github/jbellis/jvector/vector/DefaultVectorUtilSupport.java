@@ -652,7 +652,7 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
       var codebookOffset = centroidIndex * centroidLength;
       sum += dotProduct(codebooks[m], codebookOffset, centeredQuery, centroidOffset, centroidLength);
       aMagnitude += dotProduct(codebooks[m], codebookOffset, codebooks[m], codebookOffset, centroidLength);
-      aMagnitude += dotProduct(centeredQuery, centroidOffset, centeredQuery, centroidOffset, centroidLength);
+      bMagnitude += dotProduct(centeredQuery, centroidOffset, centeredQuery, centroidOffset, centroidLength);
    }
    float cosine = sum / (float) Math.sqrt(aMagnitude * bMagnitude);
    return cosine;
