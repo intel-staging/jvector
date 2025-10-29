@@ -1909,7 +1909,7 @@ class PanamaVectorUtilSupport implements VectorUtilSupport {
             int length1 = centroidIndex1 * centroidLength;
             int length2 = centroidIndex2 * centroidLength;
 
-	    if (centroidLength == FloatVector.SPECIES_512.length()) {
+	    if (centroidLength == FloatVector.SPECIES_PREFERRED.length()) {
                 FloatVector a = fromVectorFloat(FloatVector.SPECIES_PREFERRED, codebooks[m], length1);
                 FloatVector b = fromVectorFloat(FloatVector.SPECIES_PREFERRED, codebooks[m], length2);
                 vSum = a.fma(b, vSum);
@@ -2416,7 +2416,7 @@ class PanamaVectorUtilSupport implements VectorUtilSupport {
             int length1 = centroidIndex * centroidLength;
             int length2 = subvectorSizesAndOffsets[m][1];
 
-	    if (centroidLength == FloatVector.SPECIES_512.length()) {
+	    if (centroidLength == FloatVector.SPECIES_PREFERRED.length()) {
                 FloatVector a = fromVectorFloat(FloatVector.SPECIES_PREFERRED, codebooks[m], length1);
                 FloatVector b = fromVectorFloat(FloatVector.SPECIES_PREFERRED, centeredQuery, length2);
                 vSum = a.fma(b, vSum);
@@ -2462,7 +2462,7 @@ class PanamaVectorUtilSupport implements VectorUtilSupport {
             int length1 = centroidIndex * centroidLength;
             int length2 = subvectorSizesAndOffsets[m][1];
 
-	    if (centroidLength == FloatVector.SPECIES_512.length()) {
+	    if (centroidLength == FloatVector.SPECIES_256.length()) {
                 FloatVector a = fromVectorFloat(FloatVector.SPECIES_256, codebooks[m], length1);
                 FloatVector b = fromVectorFloat(FloatVector.SPECIES_256, centeredQuery, length2);
                 vSum = a.fma(b, vSum);
@@ -2508,7 +2508,7 @@ class PanamaVectorUtilSupport implements VectorUtilSupport {
             int length1 = centroidIndex * centroidLength;
             int length2 = subvectorSizesAndOffsets[m][1];
 
-	    if (centroidLength == FloatVector.SPECIES_512.length()) {
+	    if (centroidLength == FloatVector.SPECIES_128.length()) {
                 FloatVector a = fromVectorFloat(FloatVector.SPECIES_128, codebooks[m], length1);
                 FloatVector b = fromVectorFloat(FloatVector.SPECIES_128, centeredQuery, length2);
                 vSum = a.fma(b, vSum);
@@ -2553,7 +2553,7 @@ class PanamaVectorUtilSupport implements VectorUtilSupport {
             int length1 = centroidIndex * centroidLength;
             int length2 = subvectorSizesAndOffsets[m][1];
 
-	    if (centroidLength == FloatVector.SPECIES_512.length()) {
+	    if (centroidLength == FloatVector.SPECIES_64.length()) {
                 FloatVector a = fromVectorFloat(FloatVector.SPECIES_64, codebooks[m], length1);
                 FloatVector b = fromVectorFloat(FloatVector.SPECIES_64, centeredQuery, length2);
                 vSum = a.fma(b, vSum);
