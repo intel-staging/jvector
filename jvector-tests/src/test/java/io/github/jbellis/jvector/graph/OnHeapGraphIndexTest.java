@@ -264,7 +264,7 @@ public class OnHeapGraphIndexTest extends RandomizedTest  {
             // We will create a trivial 1:1 mapping between the new graph and the ravv
             final int[] graphToRavvOrdMap = IntStream.range(0, allVectorsRavv.size()).toArray();
             final RemappedRandomAccessVectorValues remappedAllVectorsRavv = new RemappedRandomAccessVectorValues(allVectorsRavv, graphToRavvOrdMap);
-            ImmutableGraphIndex reconstructedAllNodeOnHeapGraphIndex = GraphIndexBuilder.buildAndMergeNewNodes(readerSupplier.get(), remappedAllVectorsRavv, allBuildScoreProvider, NUM_BASE_VECTORS, BEAM_WIDTH, NEIGHBOR_OVERFLOW, ALPHA, ADD_HIERARCHY);
+            ImmutableGraphIndex reconstructedAllNodeOnHeapGraphIndex = GraphIndexBuilder.buildAndMergeNewNodes(readerSupplier.get(), remappedAllVectorsRavv, allBuildScoreProvider, NUM_BASE_VECTORS, BEAM_WIDTH, NEIGHBOR_OVERFLOW, ALPHA);
 
             // Verify that the recall is similar across multiple queries
             // Note: Incremental insertion can have slightly different recall than bulk indexing due to the order of insertions
@@ -313,8 +313,7 @@ public class OnHeapGraphIndexTest extends RandomizedTest  {
                 final int[] allGraphToRavvOrdMap = IntStream.range(0, allVectorsRavv.size()).map(i -> allVectorsRavv.size() - 1 - i).toArray();
                 final RemappedRandomAccessVectorValues remappedAllVectorsRavv = new RemappedRandomAccessVectorValues(allVectorsRavv, allGraphToRavvOrdMap);
                 var allBsp = BuildScoreProvider.randomAccessScoreProvider(remappedAllVectorsRavv, SIMILARITY_FUNCTION);
-
-                ImmutableGraphIndex reconstructedAllNodeOnHeapGraphIndex = GraphIndexBuilder.buildAndMergeNewNodes(readerSupplier.get(), remappedAllVectorsRavv, allBsp, NUM_BASE_VECTORS, BEAM_WIDTH, NEIGHBOR_OVERFLOW, ALPHA, ADD_HIERARCHY);
+                ImmutableGraphIndex reconstructedAllNodeOnHeapGraphIndex = GraphIndexBuilder.buildAndMergeNewNodes(readerSupplier.get(), remappedAllVectorsRavv, allBsp, NUM_BASE_VECTORS, BEAM_WIDTH, NEIGHBOR_OVERFLOW, ALPHA);
 
                 // Verify that the recall is similar across multiple queries
                 // Note: Non-identity mapping can have slightly lower recall due to the complexity of merging with remapped ordinals
